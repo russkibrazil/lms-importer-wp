@@ -5,6 +5,7 @@ import csv, re
 from phpserialize import dumps
 import mariadb
 
+# Used for Namaste LMS
 def exportToCsv(inputFile):
     outputFile = None
     pathOut = input("Digite o nome do arquivo de saída \n")
@@ -37,10 +38,10 @@ def exportToCsv(inputFile):
         explanation = lines[6].removeprefix("Explicação: ").strip()
 
         csvWriter.writerow([question,"radio",1,explanation,
-                            answers[0].lstrip("ABCDEF) ").strip(), answers[0].startswith(correct), answers[0].startswith(correct),
-                            answers[1].lstrip("ABCDEF) ").strip(), answers[1].startswith(correct), answers[1].startswith(correct),
-                            answers[2].lstrip("ABCDEF) ").strip(), answers[2].startswith(correct), answers[2].startswith(correct),
-                            answers[3].lstrip("ABCDEF) ").strip(), answers[3].startswith(correct), answers[3].startswith(correct),
+                            answers[0].lstrip("ABCDEF)").strip(), answers[0].startswith(correct), answers[0].startswith(correct),
+                            answers[1].lstrip("ABCDEF)").strip(), answers[1].startswith(correct), answers[1].startswith(correct),
+                            answers[2].lstrip("ABCDEF)").strip(), answers[2].startswith(correct), answers[2].startswith(correct),
+                            answers[3].lstrip("ABCDEF)").strip(), answers[3].startswith(correct), answers[3].startswith(correct),
                             ])
     outputFile.close()
     inputFile.close()
@@ -49,7 +50,7 @@ def exportToCsv(inputFile):
 def getSql(query) -> str:
     if query == "posts_question":
         return """
-        INSERT INTO `TA2tJr_posts` (`post_author`, post_date`, `post_date_gmt`, `post_content`, `post_title`, `post_excerpt`, `post_status`, `comment_status`, `ping_status`, `post_password`, `to_ping`, `pinged`, `post_modified`, `post_modified_gmt`, `post_content_filtered`, `post_parent`, `menu_order`, `post_type`, `post_mime_type`, `comment_count`) VALUES
+        INSERT INTO `TA2tJr_posts` (`post_author`, `post_date`, `post_date_gmt`, `post_content`, `post_title`, `post_excerpt`, `post_status`, `comment_status`, `ping_status`, `post_password`, `to_ping`, `pinged`, `post_modified`, `post_modified_gmt`, `post_content_filtered`, `post_parent`, `menu_order`, `post_type`, `post_mime_type`, `comment_count`) VALUES
         (1, NOW(), UTC_TIMESTAMP(), '', {question}, '', 'publish', 'closed', 'closed', '', '', '', NOW(), UTC_TIMESTAMP(), '', 0, 0, 'stm-questions', '', 0);
         """
 
@@ -129,13 +130,13 @@ def getSql(query) -> str:
         ({post_id}, 'course_id', ''),
         ({post_id}, 'author_id', ''),
         ({post_id}, 'emails', ''),
-        ({post_id}, 'image', 'a:0:\173\175'),
+        ({post_id}, 'image', 'a:0:{{}}'),
         ({post_id}, 'question_hint', '');
     """
 
     if query == "posts_quiz":
         return """
-        INSERT INTO `TA2tJr_posts` (`post_author`, post_date`, `post_date_gmt`, `post_content`, `post_title`, `post_excerpt`, `post_status`, `comment_status`, `ping_status`, `post_password`, `to_ping`, `pinged`, `post_modified`, `post_modified_gmt`, `post_content_filtered`, `post_parent`, `menu_order`, `post_type`, `post_mime_type`, `comment_count`) VALUES
+        INSERT INTO `TA2tJr_posts` (`post_author`, `post_date`, `post_date_gmt`, `post_content`, `post_title`, `post_excerpt`, `post_status`, `comment_status`, `ping_status`, `post_password`, `to_ping`, `pinged`, `post_modified`, `post_modified_gmt`, `post_content_filtered`, `post_parent`, `menu_order`, `post_type`, `post_mime_type`, `comment_count`) VALUES
         (1, NOW(), UTC_TIMESTAMP(), '', {title}, '', 'publish', 'closed', 'closed', '', '', '', NOW(), UTC_TIMESTAMP(), '', 0, 0, 'stm-quizzes', '', 0);
         """
 
@@ -247,12 +248,12 @@ def autoInsert(inputFile):
         answersObj = []
 
         for i in range(4):
-            answersObj.append({"text": answers[i].lstrip("ABCDEF) ").strip(), "isTrue": answers[i].startswith(correct)})
+            answersObj.append({"text": answers[i].lstrip("ABCDEF)").strip(), "isTrue": answers[i].startswith(correct)})
 
         questionPost = getSql('posts_question').format(question='?')
         cur.execute(questionPost,(question,))
 
-        questions.append(cur.lastrowid)
+        questions.append(str(cur.lastrowid))
 
         questionMetaParameters = []
         for i in range(57):
@@ -263,18 +264,26 @@ def autoInsert(inputFile):
         for i in range(17):
             questionMetaParameters.append(cur.lastrowid)
 
-        questionMeta = getSql('meta_question').format(post_id='?',answers_arr='?',question_expl='?')
+        questionMeta = getSql('meta_question').format(post_id="?",answers_arr="?",question_expl="?")
         cur.execute(questionMeta,tuple(questionMetaParameters))
-        questions.append(cur.lastrowid)
         # questionSql = prepareSqlQuestion({"question": question, "answers": dumps(answersObj), "explanation": explanation})
         print("Questão {} processada".format(questionsIncluded))
+        questionsIncluded += 1
 
     if (insertQuiz):
-        quizPost = getSql('posts_quiz').format('?')
+        quizPost = getSql('posts_quiz').format(title='?')
         cur.execute(quizPost,(quizTitle,))
+        print("Quiz criado")
 
-        quizMeta = getSql('meta_quiz').format('?','?')
-        cur.execute(quizMeta,(cur.lastrowid,questions,))
+        quizMeta = getSql('meta_quiz').format(post_id='?', question_list='?')
+        quizMetaParameters = []
+        for i in range(6):
+            quizMetaParameters.append(cur.lastrowid)
+        quizMetaParameters.append(','.join(questions))
+        for i in range(3):
+            quizMetaParameters.append(cur.lastrowid)
+        cur.execute(quizMeta,tuple(quizMetaParameters))
+        print(f"Incluídas {questionsIncluded} perguntas ao quiz")
 
     conn.commit()
     conn.close()
@@ -358,6 +367,6 @@ if inputFile != None:
         if option == "1":
             exportToCsv(inputFile)
         else:
-            getSql
+            exportToSql(inputFile)
     else:
         autoInsert(inputFile)
